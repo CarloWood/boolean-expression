@@ -3,8 +3,9 @@
 This repository is a [git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
 providing C++ utilities for larger projects, including:
 
-* <tt>BooleanProduct</tt> : A product (logical AND) of (at most 63) indeterminate booleans.
-* <tt>BooleanExpression</tt> : A sum (logical OR) of such products.
+* <tt>boolean::Variable</tt> : An indeterminate boolean variable; created by a call to <tt>Context::create_variable()</tt>.
+* <tt>boolean::Product</tt> : A product (logical AND) of (at most 63) indeterminate booleans.
+* <tt>boolean::Expression</tt> : A sum (logical OR) of such products.
 
 The root project should be using
 [autotools](https://en.wikipedia.org/wiki/GNU_Build_System autotools),
@@ -70,5 +71,5 @@ Finally, run
 
 to let cwm4 do its magic, and commit all the changes.
 
-Checkout [memorymodel](https://github.com/CarloWood/memorymodel)
+Checkout [boolean-expression-testsuite](https://github.com/CarloWood/boolean-expression-testsuite)
 for an example of a project that uses this submodule.
