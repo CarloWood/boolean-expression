@@ -46,7 +46,7 @@ Changes to <tt>configure.ac</tt> and <tt>Makefile.am</tt>
 are taken care of my <tt>cwm4</tt>, except for linking
 which works as usual;
 
-for example, a module that defines a
+for example, a (single threaded) module that defines a
 
 <pre>
 bin_PROGRAMS = foobar
@@ -56,7 +56,7 @@ would also define
 
 <pre>
 foobar_CXXFLAGS = @LIBCWD_FLAGS@
-foobar_LDADD = ../boolean-expression/libboolean_expression.la $(top_builddir)/cwds/libcwds.la
+foobar_LDADD = ../boolean-expression/libboolean_expression.la ../utils/libutils.la $(top_builddir)/cwds/libcwds.la
 </pre>
 
 or whatever the path to `boolean-expression` is, to link with the required submodules,

@@ -1,10 +1,7 @@
 #include "sys.h"
 #include "debug.h"
 #include "BooleanExpression.h"
-#include "utils/is_power_of_two.h"
-#include "utils/MultiLoop.h"
 #include <ostream>
-#include <bitset>
 
 namespace boolean {
 
@@ -256,10 +253,9 @@ void Expression::simplify()
       if (removed[j])
         continue;
       Dout(dc::boolean_simplify, "Comparing " << m_sum_of_products[i] << " with " << m_sum_of_products[j]);
-      //DebugMarkDownRight;
       if (m_sum_of_products[i].is_single_negation_different_from(m_sum_of_products[j])) // Ie, i = A'BCD' and j = A'BC'D' (only negation of C is different).
       {
-        Dout(dc::boolean_simplify, DebugMarkDownRightStr " Removing both because only the negation of a single variable is different.");
+        Dout(dc::boolean_simplify, "Removing both because only the negation of a single variable is different.");
         // Replace both terms with one that has the common factor.
         removed[i] = true;
         removed[j] = true;
@@ -272,7 +268,7 @@ void Expression::simplify()
           Dout(dc::boolean_simplify, "result: " << *this);
           return;
         }
-        Dout(dc::boolean_simplify, DebugMarkDownRightStr " ... and inserting " << common_factor);
+        Dout(dc::boolean_simplify, " ... and inserting " << common_factor);
         sum_of_products_type::iterator iter = m_sum_of_products.begin() + (j + 1);
         for (int k = j + 1; k <= size; ++k)
         {
@@ -289,7 +285,7 @@ void Expression::simplify()
           ++iter;
         }
 #ifdef CWDEBUG
-        Dout(dc::boolean_simplify|continued_cf, DebugMarkDownRightStr " ... with result ");
+        Dout(dc::boolean_simplify|continued_cf, " ... with result ");
         int i1 = 0;
         for (auto&& term : m_sum_of_products)
         {
@@ -303,7 +299,7 @@ void Expression::simplify()
       }
       if (m_sum_of_products[i].includes_all_of(m_sum_of_products[j]))  // Ie, i = AB'C'XY'Z and j = AB'C' (same negation!).
       {
-        Dout(dc::boolean_simplify, DebugMarkDownRightStr " Removing the first because it includes all of the second.");
+        Dout(dc::boolean_simplify, "Removing the first because it includes all of the second.");
         // Term i is guaranteed to be the one with the most variables (i < j).
         removed[i] = true;
         if (first_removed < 0) first_removed = i;
