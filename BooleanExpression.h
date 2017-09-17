@@ -10,6 +10,7 @@ namespace boolean {
 class Context;
 class Product;
 class Expression;
+class TruthProduct;
 
 // Data associated with a boolean variable.
 class VariableData
@@ -130,7 +131,7 @@ class Product
   // Encode a Variable id to a mask representing its bit.
   static mask_type to_mask(Variable::id_type id) { ASSERT(id < max_number_of_variables); return mask_type{1} << id; }
 
- private:
+ protected:
   friend class Expression;
   mask_type m_variables;        // Set iff for variables not in use. Variables in use have their bit unset.
   mask_type m_negation;         // Set iff for variables in use whose negation is used or unused variables.
@@ -276,12 +277,21 @@ class Expression
   Expression(bool literal) : m_sum_of_products(1, Product(literal)) { }
   Expression copy() const { Expression result; result.m_sum_of_products = m_sum_of_products; return result; }
   Expression times(Expression const& expression) const;
+  Expression operator()(TruthProduct const& truth_product);
   static Expression const& zero() { return s_zero; }
   static Expression const& one() { return s_one; }
 
+  // Same as operator+(Expression const& expression0, Expression const& expression1) but without call to simplify.
+  friend bool zip(Expression& output, Expression const& expression0, Expression const& expression1);
+
   friend Expression operator+(Expression const& expression0, Expression const& expression1);
   Expression& operator+=(Expression const& expression) { *this = *this + expression; return *this; }
+
+  // Same as operator+=(Product const& product) but without call to simplify.
+  bool add(Product const& product);
+
   Expression& operator+=(Product const& product);
+
   Expression operator*(Product const& product) const;
   Expression& operator*=(Product const& product);
   void simplify();

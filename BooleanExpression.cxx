@@ -1,6 +1,8 @@
 #include "sys.h"
 #include "debug.h"
 #include "BooleanExpression.h"
+#include "TruthProduct.h"
+#include "utils/macros.h"
 #include <ostream>
 
 namespace boolean {
@@ -86,11 +88,25 @@ VariableData const& Context::operator()(Variable::id_type id) const
   return res->second;
 }
 
+bool Expression::add(Product const& product)
+{
+  if (AI_UNLIKELY(is_zero()))
+  {
+    *this = product;
+    return false;
+  }
+  if (is_one())
+    return false;
+  sum_of_products_type::iterator insert_point =
+    std::find_if(m_sum_of_products.begin(), m_sum_of_products.end(), [&product](Product const& term){ return less(term, product); });
+  m_sum_of_products.insert(insert_point, product);
+  return true;
+}
+
 Expression& Expression::operator+=(Product const& product)
 {
-  // FIXME - this can be optimized.
-  Expression expr(product);
-  *this += expr;
+  if (add(product))
+    simplify();
   return *this;
 }
 
@@ -123,7 +139,32 @@ Expression Expression::times(Expression const& expression) const
   return result;
 }
 
-Expression operator+(Expression const& expression0, Expression const& expression1)
+Expression Expression::operator()(TruthProduct const& truth_product)
+{
+  if (is_literal())
+    return this->copy();
+  Expression result{false};
+  for (Product term : m_sum_of_products)
+  {
+    // If any variable occurs in both but has different negation, then the term becomes 0.
+    if ((~(term.m_variables | truth_product.m_variables) & (truth_product.m_negation ^ term.m_negation)))
+      continue;
+
+    // Remove all variables in truth_product from the term (they are all 1).
+    term.m_variables |= ~truth_product.m_variables;
+    term.m_negation |= ~truth_product.m_variables;
+
+    // If all variables in term occur in truth_product then the term and therefore the sum becomes true.
+    if (term.m_variables == Product::full_mask)
+      return true;
+
+    // Add remaining term to result;
+    result += term;
+  }
+  return result;
+}
+
+bool zip(Expression& output, Expression const& expression0, Expression const& expression1)
 {
   size_t size[2] = { expression0.m_sum_of_products.size(), expression1.m_sum_of_products.size() };
 
@@ -131,7 +172,6 @@ Expression operator+(Expression const& expression0, Expression const& expression
   ASSERT(size[0] > 0 && size[1] > 0);
 
   // Merge the two ordered input vectors into a new (ordered) vector output.
-  Expression output;
   output.m_sum_of_products.reserve(size[0] + size[1]);
   Expression::sum_of_products_type const* input[2] = { &expression0.m_sum_of_products, &expression1.m_sum_of_products };
 
@@ -154,29 +194,34 @@ Expression operator+(Expression const& expression0, Expression const& expression
     // From which we can see that (see http://www.32x8.com/circuits4---A-B-C-D----m-1-8-9-----d-0-3-5-7-10-11-12-13-14-15):
     //   Y = D + A
     output.m_sum_of_products = *input[expression1.is_one() || expression0.is_zero()];
-  }
-  else
-  {
-    // Zip the two vectors into eachother so the result is still ordered.
-    size_t term_of_input[2] = { 0, 0 }; // The current indices into the vector m_sum_of_products of both inputs.
-    int largest_input;                  // Which input has currently the "largest_input" term of m_sum_of_products.
-    do
-    {
-      // Sort large to small (many variables to few), so that when simplify() removes variables from
-      // a term we get something that might still combine with a term that it still has to process.
-      largest_input = Expression::less(expression0.m_sum_of_products[term_of_input[0]], expression1.m_sum_of_products[term_of_input[1]]) ? 1 : 0;
-      output.m_sum_of_products.push_back((*input[largest_input])[term_of_input[largest_input]]);
-    }
-    while (++term_of_input[largest_input] < size[largest_input]);
-    int remaining_input = 1 - largest_input;        // Only one input left (largest_input is consumed).
-    do
-    {
-      output.m_sum_of_products.push_back((*input[remaining_input])[term_of_input[remaining_input]]);
-    }
-    while (++term_of_input[remaining_input] < size[remaining_input]);
-    output.simplify();
+    return false;
   }
 
+  // Zip the two vectors into eachother so the result is still ordered.
+  size_t term_of_input[2] = { 0, 0 }; // The current indices into the vector m_sum_of_products of both inputs.
+  int largest_input;                  // Which input has currently the "largest_input" term of m_sum_of_products.
+  do
+  {
+    // Sort large to small (many variables to few), so that when simplify() removes variables from
+    // a term we get something that might still combine with a term that it still has to process.
+    largest_input = Expression::less(expression0.m_sum_of_products[term_of_input[0]], expression1.m_sum_of_products[term_of_input[1]]) ? 1 : 0;
+    output.m_sum_of_products.push_back((*input[largest_input])[term_of_input[largest_input]]);
+  }
+  while (++term_of_input[largest_input] < size[largest_input]);
+  int remaining_input = 1 - largest_input;        // Only one input left (largest_input is consumed).
+  do
+  {
+    output.m_sum_of_products.push_back((*input[remaining_input])[term_of_input[remaining_input]]);
+  }
+  while (++term_of_input[remaining_input] < size[remaining_input]);
+  return true;
+}
+
+Expression operator+(Expression const& expression0, Expression const& expression1)
+{
+  Expression output;
+  if (zip(output, expression0, expression1))
+    output.simplify();
   return output;
 }
 

@@ -5,7 +5,9 @@ noinst_LTLIBRARIES += libboolean_expression.la
 
 SOURCES = \
 	BooleanExpression.cxx \
-	BooleanExpression.h
+	BooleanExpression.h \
+	TruthProduct.cxx \
+	TruthProduct.h
 
 libboolean_expression_la_SOURCES = ${SOURCES}
 libboolean_expression_la_CXXFLAGS = -std=c++11 @LIBCWD_FLAGS@
