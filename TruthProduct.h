@@ -7,8 +7,9 @@ namespace boolean {
 class TruthProduct : public Product
 {
  public:
-  TruthProduct() : Product(true) { }
   using Product::Product;
+  TruthProduct() : Product(true) { }
+  TruthProduct(int number_of_booleans) { m_variables = m_negation = full_mask << number_of_booleans; }
 
   TruthProduct& operator++();
 };

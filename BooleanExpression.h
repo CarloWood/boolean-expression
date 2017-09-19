@@ -150,7 +150,9 @@ class Product
   // Construct a Product that represents just one variable.
   Product(Variable variable, bool negated = false) : m_variables(~to_mask(variable.m_id)), m_negation(negated ? full_mask : m_variables) { }
 
+#ifdef CWDEBUG
   bool is_sane() const;
+#endif
 
   Product& operator*=(Product const& product)
   {
@@ -210,6 +212,7 @@ class Product
   bool is_literal() const { return (m_variables ^ m_negation) == full_mask; }
   bool is_zero() const { return m_variables == empty_mask; }
   bool is_one() const { return m_variables == full_mask; }
+
   int number_of_variables() const
   {
     int count = 0;
@@ -217,9 +220,14 @@ class Product
     while (value != 0) { ++count; value &= value - 1; }
     return count;
   }
+ private:
   bool is_single_negation_different_from(Product const& product);
   bool includes_all_of(Product const& product);
+  bool has_different_negation_for_single_variable(Product const& product);
   static Product common_factor(Product const& product1, Product const& product2);
+  static Product remove_variable(Product const& product, Product const& variable);
+
+ public:
   std::string to_string(bool html = false) const;
 
   friend std::ostream& operator<<(std::ostream& os, Product const& product) { return os << product.to_string(); }
@@ -234,38 +242,28 @@ class Expression
  public:
   using mask_type = Product::mask_type;
 
- private:
+ protected:
   using sum_of_products_type = std::vector<Product>;
   sum_of_products_type m_sum_of_products;       // Elements must have a unique set of variables (Product::m_variables) and be ordered.
   static Expression s_zero;
   static Expression s_one;
 
-  static mask_type grayToBinary64(mask_type num)
-  {
-    num ^= num >> 32;
-    num ^= num >> 16;
-    num ^= num >> 8;
-    num ^= num >> 4;
-    num ^= num >> 2;
-    num ^= num >> 1;
-    return num;
-  }
-
   // Used for ordering m_sum_of_products.
   static bool less(Product const& product1, Product const& product2)
   {
-    // Note: we need to sort on negation too for the sake of simplify(),
-    // even though after simplifying that compare becomes irrelevant.
-    // Moreover this ordering needs to according to Gray code for the
-    // benefit of simplify().
     int number_of_variables1 = product1.number_of_variables();
     int number_of_variables2 = product2.number_of_variables();
+    // Terms with more variables must be on the left in the sum for simplify() to work correctly.
     return number_of_variables1 < number_of_variables2 ||
            (number_of_variables1 == number_of_variables2 &&
+            // The rest is just arbitrary ordering (doesn't matter for simplify to work).
             (product1.m_variables < product2.m_variables ||
              (product1.m_variables == product2.m_variables &&
-              grayToBinary64(product1.m_negation) < grayToBinary64(product2.m_negation)))); // mask_type must be unsigned for this to work.
+              product1.m_negation < product2.m_negation)));
   }
+
+  // Used by simplify.
+  void insert_after(Product const& term, int after, std::vector<bool> const& removed);
 
  public:
   Expression() { }
@@ -277,7 +275,7 @@ class Expression
   Expression(bool literal) : m_sum_of_products(1, Product(literal)) { }
   Expression copy() const { Expression result; result.m_sum_of_products = m_sum_of_products; return result; }
   Expression times(Expression const& expression) const;
-  Expression operator()(TruthProduct const& truth_product);
+  Expression operator()(TruthProduct const& truth_product) const;
   static Expression const& zero() { return s_zero; }
   static Expression const& one() { return s_one; }
 
@@ -295,7 +293,9 @@ class Expression
   Expression operator*(Product const& product) const;
   Expression& operator*=(Product const& product);
   void simplify();
+#ifdef CWDEBUG
   void sanity_check() const;
+#endif
 
   // A literal (zero or one) can only be in a sum when it is the only term.
   bool is_literal() const { return m_sum_of_products[0].is_literal(); }

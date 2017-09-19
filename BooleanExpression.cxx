@@ -4,6 +4,7 @@
 #include "TruthProduct.h"
 #include "utils/macros.h"
 #include <ostream>
+#include <algorithm>
 
 namespace boolean {
 
@@ -125,7 +126,7 @@ Expression& Expression::operator*=(Product const& product)
   for (auto&& term : m_sum_of_products)
     term *= product;
   simplify();
-  sanity_check();
+  Debug(sanity_check());
   return *this;
 }
 
@@ -139,7 +140,7 @@ Expression Expression::times(Expression const& expression) const
   return result;
 }
 
-Expression Expression::operator()(TruthProduct const& truth_product)
+Expression Expression::operator()(TruthProduct const& truth_product) const
 {
   if (is_literal())
     return this->copy();
@@ -241,6 +242,17 @@ bool Product::includes_all_of(Product const& product)
          !(negation_difference & ~product.m_variables);                 // None of those variables have a different negation.
 }
 
+bool Product::has_different_negation_for_single_variable(Product const& product)
+{
+  if (((product.m_variables + 1) | product.m_variables) == full_mask && // Is product just a single variable?
+      (m_variables | product.m_variables) != full_mask)
+  {
+    mask_type negation_difference = m_negation ^ product.m_negation;
+    return negation_difference & ~product.m_variables;
+  }
+  return false;
+}
+
 //static
 Product Product::common_factor(Product const& product1, Product const& product2)
 {
@@ -251,6 +263,50 @@ Product Product::common_factor(Product const& product1, Product const& product2)
   if (result.m_variables == full_mask)  // No common factors?
     result.m_negation = empty_mask;     // Return 'one'.
   return result;
+}
+
+//static
+Product Product::remove_variable(Product const& product, Product const& variable)
+{
+  Product result;
+  result.m_variables = product.m_variables | ~variable.m_variables;
+  result.m_negation = product.m_negation | ~variable.m_variables;
+  ASSERT(result.is_sane());
+  return result;
+}
+
+void Expression::insert_after(Product const& term, int after, std::vector<bool> const& removed)
+{
+  Dout(dc::boolean_simplify, " ... and inserting " << term);
+  int size = m_sum_of_products.size();
+  ASSERT(size < (int)removed.size());
+  sum_of_products_type::iterator iter = m_sum_of_products.begin() + (after + 1);
+  for (int k = after + 1; k <= size; ++k, ++iter)
+  {
+    if (k < size && removed[k])
+      continue;
+    if (k == size || less(*iter, term))
+    {
+      // Insert term before the first element that is less than term.
+      m_sum_of_products.insert(iter, term);
+      break;
+    }
+  }
+#ifdef CWDEBUG
+  Dout(dc::boolean_simplify|continued_cf, " ... with result ");
+  int i1 = 0;
+  bool first = true;
+  for (auto&& term1 : m_sum_of_products)
+  {
+    if (!removed[i1])
+    {
+      Dout(dc::continued, (!first ? " + " : "") << term1);
+      first = false;
+    }
+    ++i1;
+  }
+  Dout(dc::finish, "");
+#endif
 }
 
 void Expression::simplify()
@@ -275,10 +331,6 @@ void Expression::simplify()
   // Here ABC and XYZ stand for 'any boolean product', while just A and D stand for a single indeterminate boolean Variable.
   //
   // Simplification for the following still fails:
-  //
-  //  A     +    A'
-  //
-  //   B' + B  + A'
   //
   //   B  + B'A + A'  <--
   //   B' + B A + A'  <--
@@ -313,33 +365,18 @@ void Expression::simplify()
           Dout(dc::boolean_simplify, "result: " << *this);
           return;
         }
-        Dout(dc::boolean_simplify, " ... and inserting " << common_factor);
-        sum_of_products_type::iterator iter = m_sum_of_products.begin() + (j + 1);
-        for (int k = j + 1; k <= size; ++k)
-        {
-          if (k < size && removed[k])
-            continue;
-          if (k == size || less(*iter, common_factor))
-          {
-            // Insert common_factor before the first element that is less than common_factor.
-            m_sum_of_products.insert(iter, common_factor);
-            ++size;
-            ASSERT(size <= max_size);
-            break;
-          }
-          ++iter;
-        }
-#ifdef CWDEBUG
-        Dout(dc::boolean_simplify|continued_cf, " ... with result ");
-        int i1 = 0;
-        for (auto&& term : m_sum_of_products)
-        {
-          if (!removed[i1])
-            Dout(dc::continued, (i1 > 0 ? " + " : "") << term);
-          ++i1;
-        }
-        Dout(dc::finish, "");
-#endif
+        insert_after(common_factor, j, removed);
+        ++size;
+        break;
+      }
+      if (m_sum_of_products[i].has_different_negation_for_single_variable(m_sum_of_products[j])) // Ie, i = AB'C and j = B. j must be a single variable.
+      {
+        Dout(dc::boolean_simplify, "Removing the first because it contains the single variable of the second but with a different negation.");
+        removed[i] = true;
+        if (first_removed < 0) first_removed = i;
+        Product shorter_term = Product::remove_variable(m_sum_of_products[i], m_sum_of_products[j]);
+        insert_after(shorter_term, i, removed);
+        ++size;
         break;
       }
       if (m_sum_of_products[i].includes_all_of(m_sum_of_products[j]))  // Ie, i = AB'C'XY'Z and j = AB'C' (same negation!).
@@ -364,6 +401,7 @@ void Expression::simplify()
   Dout(dc::boolean_simplify, "result: " << *this);
 }
 
+#ifdef CWDEBUG
 bool Product::is_sane() const
 {
   if (m_variables == empty_mask && m_negation == full_mask)
@@ -403,6 +441,7 @@ void Expression::sanity_check() const
     ASSERT(!less(*iter, *next));
   }
 }
+#endif
 
 // Brute force comparison of two boolean expressions.
 bool Expression::equivalent(Expression const& expression) const
