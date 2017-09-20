@@ -263,7 +263,7 @@ class Expression
   }
 
   // Used by simplify.
-  void insert_after(Product const& term, int after, std::vector<bool> const& removed);
+  void insert_after(Product const& term, int after, int retest, int& size, int& first_removed);
 
  public:
   Expression() { }
@@ -291,7 +291,6 @@ class Expression
   Expression& operator+=(Product const& product);
 
   Expression operator*(Product const& product) const;
-  Expression& operator*=(Product const& product);
   void simplify();
 #ifdef CWDEBUG
   void sanity_check() const;
