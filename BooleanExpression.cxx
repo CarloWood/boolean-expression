@@ -28,6 +28,14 @@ std::string Product::to_string(bool html) const
   // Set to true to use quote instead of an overline.
   bool constexpr use_quote = false;
 
+  int const i = use_quote ? 1 : html ? 3 : 0;
+  static struct { char const* pre; char const* post; } negated_str[4] = {
+      { "\e[53;4m", "\e[0m" },
+      { "", "'" },
+      { "", "&#x305;" },
+      { "<U>", "</U>" }
+    };
+
   std::string result;
   for (Variable::id_type id = 0; id < Product::max_number_of_variables; ++id)
   {
@@ -37,11 +45,11 @@ std::string Product::to_string(bool html) const
       bool negated = m_negation & variable;
       for (char c : Context::instance()(id).name())
       {
-        if (negated && !(html || use_quote))
-          result += "\u0305";
+        if (negated)
+          result += negated_str[i].pre;
         result += c;
-        if (negated && (html || use_quote))
-          result += use_quote ? "'" : "&#x305;";
+        if (negated)
+          result += negated_str[i].post;
       }
     }
   }
@@ -91,10 +99,14 @@ VariableData const& Context::operator()(Variable::id_type id) const
 
 bool Expression::add(Product const& product)
 {
-  sum_of_products_type::iterator insert_point =
-    std::find_if(m_sum_of_products.begin(), m_sum_of_products.end(), [&product](Product const& term){ return less(term, product); });
-  m_sum_of_products.insert(insert_point, product);
-  return true;
+  bool product_is_non_zero = !product.is_zero();
+  if (product_is_non_zero)
+  {
+    sum_of_products_type::iterator insert_point =
+      std::find_if(m_sum_of_products.begin(), m_sum_of_products.end(), [&product](Product const& term){ return less(term, product); });
+    m_sum_of_products.insert(insert_point, product);
+  }
+  return product_is_non_zero;
 }
 
 Expression& Expression::operator+=(Product const& product)
@@ -103,9 +115,17 @@ Expression& Expression::operator+=(Product const& product)
     *this = product;
   else if (!is_one())
   {
-    add(product);
-    simplify();
+    if (!product.is_one())       // add may not be called with one.
+    {
+      if (add(product))
+        simplify();
+    }
+    else
+      *this = true;
   }
+#ifdef CWDEBUG
+  sanity_check();
+#endif
   return *this;
 }
 
@@ -117,10 +137,17 @@ Expression Expression::operator*(Product const& product) const
       return false;
     return is_one() ? Expression(product) : copy();
   }
-  Expression result(0);
+  Expression result;
+  bool non_zero = false;
   for (auto&& term : m_sum_of_products)
-    result.add(term * product);
-  result.simplify();
+    non_zero |= result.add(term * product);
+  if (AI_LIKELY(non_zero))
+    result.simplify();
+  else
+    result = false;
+#ifdef CWDEBUG
+  result.sanity_check();
+#endif
   return result;
 }
 
@@ -132,11 +159,18 @@ Expression Expression::times(Expression const& expression) const
       return false;
     return is_one() ? expression.copy() : copy();
   }
-  Expression result(0);
+  Expression result;
+  bool non_zero = false;
   for (auto&& term1 : m_sum_of_products)
     for (auto&& term2 : expression.m_sum_of_products)
-      result.add(term1 * term2);
-  result.simplify();
+      non_zero |= result.add(term1 * term2);
+  if (AI_LIKELY(non_zero))
+    result.simplify();
+  else
+    result = false;
+#ifdef CWDEBUG
+  result.sanity_check();
+#endif
   return result;
 }
 
@@ -451,6 +485,7 @@ void Expression::sanity_check() const
     ASSERT(term.is_sane());
   for (auto iter = m_sum_of_products.begin(); iter != m_sum_of_products.end(); ++iter)
   {
+    ASSERT(iter == m_sum_of_products.begin() || !iter->is_literal());
     auto next = iter + 1;
     if (next == m_sum_of_products.end())
       break;
