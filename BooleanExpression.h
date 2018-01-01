@@ -1,3 +1,60 @@
+// boolean-expression -- Indeterminate booleans as sum of product expressions.
+//
+//! @file
+//! @brief Definitions of Context, Variable, Product and Expression in namespace boolean.
+//
+// Copyright (C) 2017 - 2018  Carlo Wood.
+//
+// RSA-1024 0x624ACAD5 1997-01-26                    Sign & Encrypt
+// Fingerprint16 = 32 EC A7 B6 AC DB 65 A6  F6 F6 55 DD 1C DC FF 61
+//
+// This file is part of boolean-expression.
+//
+// boolean-expression is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// boolean-expression is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with boolean-expression.  If not, see <http://www.gnu.org/licenses/>.
+
+// Usage:
+//
+// using namespace boolean;
+//
+// // Create variables.
+//
+// Context& context{Context::instance()};
+// Variable A{context.create_variable("A")};
+// Variable B{context.create_variable("B")};
+// Variable C{context.create_variable("B")};
+//
+// // Construct single variable "Products" from variables.
+//
+// Product a(A);                // A
+// Product _a(A, true);         // !A
+// Product b, _b;               // Uninitialized b and _b.
+// b = B;                       // B
+// _b = !B;                     // !B
+//
+// // Multiplying Products.
+//
+// Product _ab{_a};             // !A
+// _ab *= b;                    // !A * B
+// Product ab_c;                // Uninitialized product.
+// ab_c = A * b * !C;
+// assert(_ab * ab_c == 1);
+//
+// Expression one{true};        // True
+// Expression e(Ab);
+// e += !a * !b;                // !A * B + !A * !B = !A.
+//
+
 #pragma once
 
 #include "utils/Singleton.h"
@@ -133,8 +190,11 @@ class Product
 
  protected:
   friend class Expression;
-  mask_type m_variables;        // Set iff for variables not in use. Variables in use have their bit unset.
-  mask_type m_negation;         // Set iff for variables in use whose negation is used or unused variables.
+  mask_type m_variables;        // Set for variables that are not in use. Variables in use have their bit unset.
+  mask_type m_negation;         // Set for variables that are not in use and for variables that are in use and negated.
+
+  // Construct a Product directly from two masks.
+  Product(mask_type variables, mask_type negation) : m_variables(variables), m_negation(negation) { ASSERT(is_sane()); }
 
  public:
   // Construct an uninitialized Product.
@@ -220,6 +280,7 @@ class Product
     while (value != 0) { ++count; value &= value - 1; }
     return count;
   }
+
  private:
   bool is_single_negation_different_from(Product const& product);
   bool includes_all_of(Product const& product);
@@ -275,6 +336,7 @@ class Expression
   Expression(bool literal) : m_sum_of_products(1, Product(literal)) { }
   Expression copy() const { Expression result; result.m_sum_of_products = m_sum_of_products; return result; }
   Expression times(Expression const& expression) const;
+  Expression inverse() const;
   Expression operator()(TruthProduct const& truth_product) const;
   static Expression const& zero() { return s_zero; }
   static Expression const& one() { return s_one; }
@@ -304,6 +366,9 @@ class Expression
   bool equivalent(Expression const& expression) const;
   std::string as_html_string() const;
   Product const& as_product() const { ASSERT(is_product()); return m_sum_of_products[0]; }
+
+ //private:
+  static Expression inverse(Product const& product);
 
   friend std::ostream& operator<<(std::ostream& os, Expression const& expression);
   friend bool operator==(Expression const& expression1, Expression const& expression2) { return expression1.m_sum_of_products == expression2.m_sum_of_products; }
