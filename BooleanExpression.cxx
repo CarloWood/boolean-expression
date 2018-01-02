@@ -199,6 +199,7 @@ Expression Expression::times(Expression const& expression) const
   return result;
 }
 
+//static
 Expression Expression::inverse(Product const& product)
 {
   // The input product may not be a literal.

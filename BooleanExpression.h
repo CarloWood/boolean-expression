@@ -50,10 +50,19 @@
 // ab_c = A * b * !C;
 // assert(_ab * ab_c == 1);
 //
-// Expression one{true};        // True
-// Expression e(Ab);
-// e += !a * !b;                // !A * B + !A * !B = !A.
 //
+// // Expressions.
+//
+// Expression e{true};          // True
+// Expression f(_ab);           // !A * B.
+// Expression g(f.copy());      // Must explicitely use copy().
+//
+// e  = vA * vD;                // A * D.
+// e += g * !vD;                // A * D + !A * B * !D.
+// e += !vB * vC;               // A * D + !A * B * !D + !B * C.
+// f = e.times(f);              // !A * B * !D. Must explicitely use 'times()' to multiply two Expressions.
+// e = !_ab;                    // A + !B
+// f = f.inverse();             // A + !B + D. Must explicitely use 'inverse()' to calculate the inverse of an Expression.
 
 #pragma once
 
@@ -102,6 +111,9 @@ class Variable
   Variable() : m_id(s_next_id++) { }
   // Create a Variable from id for use as key when looking up a variable in Context::m_variables.
   Variable(id_type id) : m_id(id) { }
+
+ public:
+  inline Product operator!() const;
 
   friend bool operator<(Variable const& variable1, Variable const& variable2) { return variable1.m_id < variable2.m_id; }
   friend std::ostream& operator<<(std::ostream& os, Variable const& variable);
@@ -193,9 +205,6 @@ class Product
   mask_type m_variables;        // Set for variables that are not in use. Variables in use have their bit unset.
   mask_type m_negation;         // Set for variables that are not in use and for variables that are in use and negated.
 
-  // Construct a Product directly from two masks.
-  Product(mask_type variables, mask_type negation) : m_variables(variables), m_negation(negation) { ASSERT(is_sane()); }
-
  public:
   // Construct an uninitialized Product.
   Product() { }
@@ -209,6 +218,9 @@ class Product
 
   // Construct a Product that represents just one variable.
   Product(Variable variable, bool negated = false) : m_variables(~to_mask(variable.m_id)), m_negation(negated ? full_mask : m_variables) { }
+
+  // Construct a Product directly from two masks (for internal use only; but public because it is called from a header of the std library).
+  explicit Product(mask_type variables, mask_type negation) : m_variables(variables), m_negation(negation) { ASSERT(is_sane()); }
 
 #ifdef CWDEBUG
   bool is_sane() const;
@@ -258,7 +270,7 @@ class Product
     return *this;
   }
 
-  Product operator*(Product const& rhs) const { Product result(*this); result *= rhs; return result; }
+  inline Expression operator!() const;
 
   void negate()
   {
@@ -296,7 +308,16 @@ class Product
       { return product1.m_variables == product2.m_variables && product1.m_negation == product2.m_negation; }
   friend bool operator!=(Product const& product1, Product const& product2)
       { return product1.m_variables != product2.m_variables || product1.m_negation != product2.m_negation; }
+  friend Product operator*(Product lhs, Product const& rhs) { lhs *= rhs; return lhs; }
 };
+
+//inline
+Product Variable::operator!() const
+{
+  return Product(*this, true);
+}
+
+inline Product operator*(Variable lhs, Variable rhs) { Product result(lhs); result *= rhs; return result; }
 
 class Expression
 {
@@ -374,6 +395,12 @@ class Expression
   friend bool operator==(Expression const& expression1, Expression const& expression2) { return expression1.m_sum_of_products == expression2.m_sum_of_products; }
   friend bool operator!=(Expression const& expression1, Expression const& expression2) { return !(expression1.m_sum_of_products == expression2.m_sum_of_products); }
 };
+
+//inline
+Expression Product::operator!() const
+{
+  return Expression::inverse(*this);
+}
 
 } // namespace boolean
 
