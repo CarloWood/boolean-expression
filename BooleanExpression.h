@@ -384,6 +384,7 @@ class Expression
   bool is_zero() const { return m_sum_of_products[0].is_zero(); }
   bool is_one() const { return m_sum_of_products[0].is_one(); }
   bool is_product() const { return m_sum_of_products.size() == 1; }
+  bool is_initialized() const { return !m_sum_of_products.empty(); }
   bool equivalent(Expression const& expression) const;
   std::string as_html_string() const;
   Product const& as_product() const { ASSERT(is_product()); return m_sum_of_products[0]; }
