@@ -8,7 +8,7 @@ providing C++ utilities for larger projects, including:
 * <tt>boolean::Expression</tt> : A sum (logical OR) of such products.
 
 The root project should be using
-[autotools](https://en.wikipedia.org/wiki/GNU_Build_System autotools),
+[autotools](https://en.wikipedia.org/wiki/GNU_Build_System_autotools),
 [cwm4](https://github.com/CarloWood/cwm4) and
 [libcwd](https://github.com/CarloWood/libcwd).
 
