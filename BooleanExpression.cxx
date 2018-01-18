@@ -35,7 +35,7 @@ namespace boolean {
 
 std::ostream& operator<<(std::ostream& os, VariableData const& variable_data)
 {
-  os << '{' << variable_data.m_user_id << ", " << variable_data.m_name << '}';
+  os << '{' << variable_data.m_name << " [" << variable_data.m_user_id << "]}";
   return os;
 }
 
