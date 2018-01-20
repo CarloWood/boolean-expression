@@ -345,7 +345,7 @@ class Expression
   }
 
   // Used by simplify.
-  void insert_after(Product const& term, int after, int retest, int& size, int& first_removed);
+  bool insert_after(Product const& term, int after, int& size, int& first_removed);
 
  public:
   Expression() { }

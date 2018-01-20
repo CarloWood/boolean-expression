@@ -51,7 +51,7 @@ std::string Product::to_string(bool html) const
     return is_one() ? "1" : "0";
 
   // Set to true to use quote instead of an overline.
-  bool constexpr use_quote = false;
+  bool constexpr use_quote = true; //false;
 
   int const i = use_quote ? 1 : html ? 3 : 0;
   static struct { char const* pre; char const* post; } negated_str[4] = {
@@ -375,15 +375,16 @@ Product Product::remove_variable(Product const& product, Product const& variable
   return result;
 }
 
-void Expression::insert_after(Product const& term, int after, int retest, int& size, int& first_removed)
+bool Expression::insert_after(Product const& term, int after, int& size, int& first_removed)
 {
-  Dout(dc::boolean_simplify, " ... and inserting " << term);
+  DoutEntering(dc::boolean_simplify, "insert_after(" << term << ", " << after << ", ...)");
   sum_of_products_type::iterator iter = m_sum_of_products.begin() + (after + 1);
-  for (int k = after + 1; k <= size; ++k, ++iter)
+  int j = after + 1;
+  for (; j <= size; ++j, ++iter)
   {
-    if (k < size && m_sum_of_products[k].m_variables == 0)      // k exists but is removed.
+    if (j < size && m_sum_of_products[j].m_variables == 0)      // j exists but is removed.
       continue;
-    if (k == size || less(*iter, term))
+    if (j == size || less(*iter, term))
     {
       // Insert term before the first element that is less than term.
       m_sum_of_products.insert(iter, term);
@@ -407,28 +408,49 @@ void Expression::insert_after(Product const& term, int after, int retest, int& s
   Dout(dc::finish, "");
 #endif
   // Retest new term with all terms before retest (which can be considered removed at this point).
-  for (int i = 0; i < retest; ++i)
+  for (int i = 0; i < j; ++i)
   {
     if (!m_sum_of_products[i].m_variables)      // Removed?
       continue;
     Dout(dc::boolean_simplify, "Comparing " << m_sum_of_products[i] << " with " << term);
+    if (m_sum_of_products[i].is_single_negation_different_from(term))
+    {
+      Dout(dc::boolean_simplify, "Removing both because only the negation of a single variable is different.");
+      // Replace both terms with one that has the common factor.
+      Product common_factor = Product::common_factor(m_sum_of_products[i], term);
+      m_sum_of_products[i].m_variables = 0;   // Remove i.
+      m_sum_of_products[j].m_variables = 0;   // Remove j.
+      if (first_removed < 0) first_removed = i;
+      if (common_factor.is_one())
+      {
+        // A + A' is true;
+        *this = true;
+        Dout(dc::boolean_simplify, "result: " << *this);
+        return true;
+      }
+      if (insert_after(common_factor, j, size, first_removed))       // Insert common_factor after j.
+        return true;
+      continue;
+    }
     if (m_sum_of_products[i].has_different_negation_for_single_variable(term))
     {
       Dout(dc::boolean_simplify, "Removing the first because it contains the single variable of the second but with a different negation.");
       Product shorter_term = Product::remove_variable(m_sum_of_products[i], term);
       m_sum_of_products[i].m_variables = 0;   // Remove i.
       if (i < first_removed) first_removed = i;
-      insert_after(shorter_term, i, i, size, first_removed);    // Insert shorter_term after i.
-      break;
+      if (insert_after(shorter_term, i, size, first_removed))        // Insert shorter_term after i.
+        return true;
+      continue;
     }
     if (m_sum_of_products[i].includes_all_of(term))
     {
       Dout(dc::boolean_simplify, "Removing the first because it includes all of the second.");
       m_sum_of_products[i].m_variables = 0;   // Remove i.
       if (i < first_removed) first_removed = i;
-      break;
+      continue;
     }
   }
+  return false;
 }
 
 void Expression::simplify()
@@ -445,20 +467,13 @@ void Expression::simplify()
 
   // Comparing the logical OR (+) between a pair of boolean products can lead to the following simplifications,
   //
-  // ABCD   + ABCD'    = ABC    Both terms must be removed and replaced with ABC.
-  // A      + A'       = True   Special case: the whole sum becomes true.
-  // ABCXYZ + ABC      = ABC    First term must be removed.
-  // ABC    + ABC      = ABC    (Same as above (first term can be removed))
+  // ABCD   + ABCD'    = ABC      Both terms must be removed and replaced with ABC.
+  // A      + A'       = True     Special case: the whole sum becomes true.
+  // ABCD   + D'       = ABC + D' First term is removed and a new term (without the single variable) is added.
+  // ABCXYZ + ABC      = ABC      First term must be removed.
+  // ABC    + ABC      = ABC      (Same as above (first term can be removed))
   //
   // Here ABC and XYZ stand for 'any boolean product', while just A and D stand for a single indeterminate boolean Variable.
-  //
-  // Simplification for the following still fails:
-  //
-  //   B  + B'A + A'  <--
-  //   B' + B A + A'  <--
-  //
-  //   D' + DC + C'B + B'A + A' = 1
-  //
 
   int first_removed = -1;
   for (int i = 0; i < size - 1; ++i)
@@ -485,7 +500,8 @@ void Expression::simplify()
           Dout(dc::boolean_simplify, "result: " << *this);
           return;
         }
-        insert_after(common_factor, j, i, size, first_removed); // Insert common_factor after j.
+        if (insert_after(common_factor, j, size, first_removed))     // Insert common_factor after j.
+          return;
         break;
       }
       if (m_sum_of_products[i].has_different_negation_for_single_variable(m_sum_of_products[j])) // Ie, i = AB'C and j = B. j must be a single variable.
@@ -494,7 +510,8 @@ void Expression::simplify()
         Product shorter_term = Product::remove_variable(m_sum_of_products[i], m_sum_of_products[j]);
         m_sum_of_products[i].m_variables = 0;   // Remove i.
         if (first_removed < 0) first_removed = i;
-        insert_after(shorter_term, i, i, size, first_removed);  // Insert shorter_term after i.
+        if (insert_after(shorter_term, i, size, first_removed))      // Insert shorter_term after i.
+          return;
         break;
       }
       if (m_sum_of_products[i].includes_all_of(m_sum_of_products[j]))  // Ie, i = AB'C'XY'Z and j = AB'C' (same negation!).
