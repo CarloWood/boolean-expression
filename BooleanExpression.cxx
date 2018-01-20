@@ -242,6 +242,7 @@ Expression Expression::inverse() const
 
 Expression Expression::operator()(TruthProduct const& truth_product) const
 {
+  ASSERT(!truth_product.is_zero());     // Not allowed.
   if (is_literal())
     return this->copy();
   Expression result{false};
