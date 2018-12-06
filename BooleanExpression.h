@@ -173,13 +173,13 @@ class Context : public Singleton<Context>
 // False results in False.
 //
 // The above means that we may not use a product that includes all variables,
-// because that is reserved for True.
+// because that is reserved for False.
 //
 // For our purpose we talk about multiplication when AND-ing and addition
 // when OR-ing. Aka, X * X = X, X * T = T, T * X = T and T * T = T.
 // Therefore we also speak of One instead of True and Zero instead of False.
 //
-// On top of in the product the negation of single variables may be used, for example
+// On top of this, in the product the negation of single variables may be used, for example
 //
 //     !B AND !C AND D
 //
@@ -194,7 +194,7 @@ class Product
   static constexpr mask_type empty_mask = 0;                    // A mask with all bits unset.
   static constexpr mask_type full_mask = empty_mask - 1;        // A mask with all bits set.
   static constexpr size_t mask_size = sizeof(mask_type) * 8;    // Size of mask_type in bits.
-  static constexpr Variable::id_type max_number_of_variables = mask_size - 1; // Disallow products of all mask_size variables whose value is reserved for One.
+  static constexpr Variable::id_type max_number_of_variables = mask_size - 1; // Disallow products of all mask_size variables whose value is reserved for Zero.
   static constexpr mask_type all_variables = full_mask >> (mask_size - max_number_of_variables);
  private:
   // Encode a Variable id to a mask representing its bit.
