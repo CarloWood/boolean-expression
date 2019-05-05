@@ -10,7 +10,7 @@ SOURCES = \
 	TruthProduct.h
 
 libboolean_expression_la_SOURCES = ${SOURCES}
-libboolean_expression_la_CXXFLAGS = -std=c++11 @LIBCWD_FLAGS@
+libboolean_expression_la_CXXFLAGS = @LIBCWD_FLAGS@
 libboolean_expression_la_LIBADD = @LIBCWD_LIBS@
 
 # --------------- Maintainer's Section
