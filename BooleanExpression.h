@@ -32,7 +32,7 @@
 // Context& context{Context::instance()};
 // Variable A{context.create_variable("A")};
 // Variable B{context.create_variable("B")};
-// Variable C{context.create_variable("B")};
+// Variable C{context.create_variable("C")};
 //
 // // Construct single variable "Products" from variables.
 //
